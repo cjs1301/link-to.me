@@ -1,0 +1,22 @@
+name: Deploy Lambda
+
+on:
+    push:
+        branches:
+            - main # 또는 master, 귀하의 기본 브랜치명
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: checkout source code
+              uses: actions/checkout@v3
+            - name: default deploy
+              uses: appleboy/lambda-action@v0.2.0
+              with:
+                  aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws_region: ap-northeast-2
+                  function_name: gorush
+                  source: handler.js

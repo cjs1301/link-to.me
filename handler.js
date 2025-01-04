@@ -1,53 +1,53 @@
 const DEVICE_TYPES = {
-    IOS: 'ios',
-    ANDROID: 'android',
-    DESKTOP: 'desktop',
-    UNKNOWN: 'unknown'
+    IOS: "ios",
+    ANDROID: "android",
+    DESKTOP: "desktop",
+    UNKNOWN: "unknown",
 };
 
 const REDIRECT_SCHEMES = {
-    YOUTUBE: 'youtube://',
-    HTTPS: 'https://',
-    YOUTUBE_REDIRECT: 'https://www.youtube.com/redirect?q=https://',
-    YOUTUBE_ANDROID_INTENT: 'intent://'
+    YOUTUBE: "youtube://",
+    HTTPS: "https://",
+    YOUTUBE_REDIRECT: "https://www.youtube.com/redirect?q=https://",
+    YOUTUBE_ANDROID_INTENT: "intent://www.youtube.com/",
 };
 
 const HEADERS = {
-    IOS: 'cloudfront-is-ios-viewer',
-    ANDROID: 'cloudfront-is-android-viewer',
-    DESKTOP: 'cloudfront-is-desktop-viewer',
-    AUTHORIZATION: 'authorization',
-    ACCEPT: 'accept',
-    API_KEY: 'x-api-key'
+    IOS: "cloudfront-is-ios-viewer",
+    ANDROID: "cloudfront-is-android-viewer",
+    DESKTOP: "cloudfront-is-desktop-viewer",
+    AUTHORIZATION: "authorization",
+    ACCEPT: "accept",
+    API_KEY: "x-api-key",
 };
 
-const cleanUrl = (url) => url.replace(/^\//, '').replace(/^https?:\/\//, '');
+const cleanUrl = (url) => url.replace(/^\//, "").replace(/^https?:\/\//, "");
 
 const getDeviceType = (headers) => {
-    if (headers[HEADERS.IOS] === 'true') return DEVICE_TYPES.IOS;
-    if (headers[HEADERS.ANDROID] === 'true') return DEVICE_TYPES.ANDROID;
-    if (headers[HEADERS.DESKTOP] === 'true') return DEVICE_TYPES.DESKTOP;
+    if (headers[HEADERS.IOS] === "true") return DEVICE_TYPES.IOS;
+    if (headers[HEADERS.ANDROID] === "true") return DEVICE_TYPES.ANDROID;
+    if (headers[HEADERS.DESKTOP] === "true") return DEVICE_TYPES.DESKTOP;
     return DEVICE_TYPES.UNKNOWN;
 };
 
 const createRedirectUrl = (cleanedLink, deviceType) => {
     const urls = {
         [DEVICE_TYPES.IOS]: `${REDIRECT_SCHEMES.YOUTUBE}${cleanedLink}`,
-        [DEVICE_TYPES.ANDROID]: `${REDIRECT_SCHEMES.YOUTUBE_ANDROID_INTENT}${cleanedLink}#Intent;` +
-        `scheme=https;package=com.google.android.youtube;` +
-        `fallback=https://www.youtube.com/${cleanedLink};` +
-        `S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.google.android.youtube;end`,
-        [DEVICE_TYPES.DESKTOP]: `${REDIRECT_SCHEMES.HTTPS}${cleanedLink}`,
-        [DEVICE_TYPES.UNKNOWN]: `${REDIRECT_SCHEMES.YOUTUBE_REDIRECT}${cleanedLink}`
+        [DEVICE_TYPES.ANDROID]:
+            `${REDIRECT_SCHEMES.YOUTUBE_ANDROID_INTENT}${cleanedLink}#Intent;` +
+            `scheme=https;package=com.google.android.youtube;` +
+            `S.browser_fallback_url=https://www.youtube.com/${cleanedLink};end`,
+        [DEVICE_TYPES.DESKTOP]: `https://www.youtube.com/${cleanedLink}`,
+        [DEVICE_TYPES.UNKNOWN]: `https://www.youtube.com/${cleanedLink}`,
     };
     return urls[deviceType] || urls[DEVICE_TYPES.UNKNOWN];
 };
 
 const logHeaders = (headers) => {
-    console.log('All Headers:', JSON.stringify(headers, null, 2));
-    if (headers[HEADERS.AUTHORIZATION]) console.log('Authorization header present');
-    console.log('Accept:', headers[HEADERS.ACCEPT]);
-    if (headers[HEADERS.API_KEY]) console.log('API Key present');
+    console.log("All Headers:", JSON.stringify(headers, null, 2));
+    if (headers[HEADERS.AUTHORIZATION]) console.log("Authorization header present");
+    console.log("Accept:", headers[HEADERS.ACCEPT]);
+    if (headers[HEADERS.API_KEY]) console.log("API Key present");
 };
 
 const createHtmlResponse = (redirectLocation, cleanedLink) => `
@@ -123,18 +123,18 @@ const createResponse = (statusCode, headers, body) => ({
     statusCode,
     headers: {
         ...headers,
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
     },
-    body
+    body,
 });
 
 exports.redirectHandler = async (event) => {
     try {
-        const { rawPath = '', rawQueryString = '', headers = {} } = event;
+        const { rawPath = "", rawQueryString = "", headers = {} } = event;
 
-        const originalLink = `${rawPath}${rawQueryString ? `?${rawQueryString}` : ''}`;
+        const originalLink = `${rawPath}${rawQueryString ? `?${rawQueryString}` : ""}`;
         const cleanedLink = cleanUrl(originalLink);
 
         logHeaders(headers);
@@ -142,16 +142,16 @@ exports.redirectHandler = async (event) => {
         const deviceType = getDeviceType(headers);
         const redirectLocation = createRedirectUrl(cleanedLink, deviceType);
 
-        console.log('Device Type:', deviceType);
-        console.log('Redirect Location:', redirectLocation);
-
-        if (deviceType === DEVICE_TYPES.ANDROID) {
-            return createResponse(200, { 'Content-Type': 'text/html' }, createHtmlResponse(redirectLocation, cleanedLink));
-        }
+        console.log("Device Type:", deviceType);
+        console.log("Redirect Location:", redirectLocation);
 
         return createResponse(302, { Location: redirectLocation });
     } catch (error) {
-        console.error('Error in redirect handler:', error, error.stack);
-        return createResponse(500, { 'Content-Type': 'application/json' }, JSON.stringify({ error: 'Internal Server Error' }));
+        console.error("Error in redirect handler:", error, error.stack);
+        return createResponse(
+            500,
+            { "Content-Type": "application/json" },
+            JSON.stringify({ error: "Internal Server Error" })
+        );
     }
 };
