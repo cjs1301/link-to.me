@@ -21,7 +21,14 @@ const HEADERS = {
     API_KEY: "x-api-key",
 };
 
-const cleanUrl = (url) => url.replace(/^\//, "").replace(/^https?:\/\//, "");
+const isValidUrl = (url) => {
+    return url && url.length > 0 && url !== ".env";
+};
+
+const cleanUrl = (url) => {
+    const cleaned = url.replace(/^\//, "").replace(/^https?:\/\//, "");
+    return cleaned === "" ? "www.youtube.com" : cleaned;
+};
 
 const getDeviceType = (headers) => {
     if (headers[HEADERS.IOS] === "true") return DEVICE_TYPES.IOS;
@@ -31,6 +38,10 @@ const getDeviceType = (headers) => {
 };
 
 const createRedirectUrl = (cleanedLink, deviceType) => {
+    if (!isValidUrl(cleanedLink)) {
+        return "https://www.youtube.com";
+    }
+
     const urls = {
         [DEVICE_TYPES.IOS]: `${REDIRECT_SCHEMES.YOUTUBE}${cleanedLink}`,
         [DEVICE_TYPES.ANDROID]:
@@ -132,7 +143,13 @@ const createResponse = (statusCode, headers, body) => ({
 
 exports.redirectHandler = async (event) => {
     try {
-        const { rawPath = "", rawQueryString = "", headers = {} } = event;
+        const { rawPath = "", rawQueryString = "", headers } = event;
+
+        console.log("event:", event);
+
+        if (!rawPath || rawPath === "/") {
+            return createResponse(302, { Location: "https://www.youtube.com" });
+        }
 
         const originalLink = `${rawPath}${rawQueryString ? `?${rawQueryString}` : ""}`;
         const cleanedLink = cleanUrl(originalLink);
