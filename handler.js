@@ -41,13 +41,20 @@ const createRedirectUrl = (rawUrl, deviceType) => {
                 `S.browser_fallback_url=${YOUTUBE_WEB}${cleanedLink};end`
             );
         default:
-            // 데스크탑의 경우만 완전한 URL 처리
-            if (cleanedLink.startsWith("http://") || cleanedLink.startsWith("https://")) {
-                return cleanedLink;
+            // 데스크탑의 경우 URL 정규화
+            if (cleanedLink.startsWith("https://") || cleanedLink.startsWith("http://")) {
+                // URL에서 앞의 프로토콜과 중복 슬래시 제거
+                cleanedLink = cleanedLink.replace(/^https?:\/\//, "");
             }
-            return cleanedLink.includes("youtube.com")
-                ? `https://${cleanedLink}`
-                : `${YOUTUBE_WEB}${cleanedLink}`;
+
+            // 쿼리 파라미터 처리
+            const [path, query] = cleanedLink.split("?");
+            const queryString = query ? `?${query}` : "";
+
+            // YouTube 도메인이 포함된 경우와 아닌 경우를 구분
+            return path.includes("youtube.com") || path.includes("youtu.be")
+                ? `https://${path}${queryString}`
+                : `${YOUTUBE_WEB}${path}${queryString}`;
     }
 };
 
