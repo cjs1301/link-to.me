@@ -1,174 +1,96 @@
-const DEVICE_TYPES = {
-    IOS: "ios",
-    ANDROID: "android",
-    DESKTOP: "desktop",
-    UNKNOWN: "unknown",
+/**
+ * 디바이스 타입 확인 및 리다이렉트 처리를 위한 Lambda 핸들러
+ */
+
+const YOUTUBE_WEB = "https://www.youtube.com/";
+
+/**
+ * 요청 헤더에서 디바이스 타입 확인
+ */
+const getDeviceType = (headers = {}) => {
+    if (headers["cloudfront-is-ios-viewer"] === "true") return "ios";
+    if (headers["cloudfront-is-android-viewer"] === "true") return "android";
+    if (headers["cloudfront-is-desktop-viewer"] === "true") return "desktop";
+    return "unknown";
 };
 
-const REDIRECT_SCHEMES = {
-    YOUTUBE: "youtube://",
-    HTTPS: "https://",
-    YOUTUBE_REDIRECT: "https://www.youtube.com/redirect?q=https://",
-    YOUTUBE_ANDROID_INTENT: "intent://www.youtube.com/",
-};
+/**
+ * URL 정리 및 리다이렉트 URL 생성
+ */
+const createRedirectUrl = (rawUrl, deviceType) => {
+    // 앞쪽 슬래시 제거
+    let cleanedLink = rawUrl.replace(/^\//, "");
 
-const HEADERS = {
-    IOS: "cloudfront-is-ios-viewer",
-    ANDROID: "cloudfront-is-android-viewer",
-    DESKTOP: "cloudfront-is-desktop-viewer",
-    AUTHORIZATION: "authorization",
-    ACCEPT: "accept",
-    API_KEY: "x-api-key",
-};
-
-const isValidUrl = (url) => {
-    return url && url.length > 0 && url !== ".env";
-};
-
-const cleanUrl = (url) => {
-    const cleaned = url.replace(/^\//, "").replace(/^https?:\/\//, "");
-    return cleaned === "" ? "www.youtube.com" : cleaned;
-};
-
-const getDeviceType = (headers) => {
-    if (headers[HEADERS.IOS] === "true") return DEVICE_TYPES.IOS;
-    if (headers[HEADERS.ANDROID] === "true") return DEVICE_TYPES.ANDROID;
-    if (headers[HEADERS.DESKTOP] === "true") return DEVICE_TYPES.DESKTOP;
-    return DEVICE_TYPES.UNKNOWN;
-};
-
-const createRedirectUrl = (cleanedLink, deviceType) => {
-    if (!isValidUrl(cleanedLink)) {
-        return "https://www.youtube.com";
+    // 유효하지 않은 URL 체크
+    if (!cleanedLink || cleanedLink === ".env") {
+        return YOUTUBE_WEB;
     }
 
-    const urls = {
-        [DEVICE_TYPES.IOS]: `${REDIRECT_SCHEMES.YOUTUBE}${cleanedLink}`,
-        [DEVICE_TYPES.ANDROID]:
-            `${REDIRECT_SCHEMES.YOUTUBE_ANDROID_INTENT}${cleanedLink}#Intent;` +
-            `scheme=https;package=com.google.android.youtube;` +
-            `S.browser_fallback_url=https://www.youtube.com/${cleanedLink};end`,
-        [DEVICE_TYPES.DESKTOP]: `https://www.youtube.com/${cleanedLink}`,
-        [DEVICE_TYPES.UNKNOWN]: `https://www.youtube.com/${cleanedLink}`,
-    };
-    return urls[deviceType] || urls[DEVICE_TYPES.UNKNOWN];
-};
-
-const logHeaders = (headers) => {
-    console.log("All Headers:", JSON.stringify(headers, null, 2));
-    if (headers[HEADERS.AUTHORIZATION]) console.log("Authorization header present");
-    console.log("Accept:", headers[HEADERS.ACCEPT]);
-    if (headers[HEADERS.API_KEY]) console.log("API Key present");
-};
-
-const createHtmlResponse = (redirectLocation, cleanedLink) => `
-  <!DOCTYPE html>
-  <html lang="ko">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>YouTube 앱으로 이동</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-          margin: 0;
-          background-color: #f9f9f9;
-        }
-        .container {
-          text-align: center;
-          padding: 20px;
-          border-radius: 8px;
-          background-color: white;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-          color: #030303;
-        }
-        p {
-          color: #606060;
-          margin-bottom: 20px;
-        }
-        .button {
-          display: inline-block;
-          padding: 10px 20px;
-          font-size: 16px;
-          color: white;
-          background-color: #FF0000;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          text-decoration: none;
-          transition: background-color 0.3s;
-        }
-        .button:hover {
-          background-color: #CC0000;
-        }
-      </style>
-      <script>
-        function tryOpenApp() {
-          var start = Date.now();
-          window.location.href = "${redirectLocation}";
-          setTimeout(function() {
-            if (Date.now() - start < 2000) {
-              window.location.href = "https://play.google.com/store/apps/details?id=com.google.android.youtube";
+    // 디바이스 타입별 URL 생성
+    switch (deviceType) {
+        case "ios":
+            // iOS의 경우 http/https 제거하고 youtube:// 스키마 사용
+            cleanedLink = cleanedLink.replace(/^https?:\/\//, "");
+            return `youtube://${cleanedLink}`;
+        case "android":
+            // Android의 경우 http/https 제거하고 intent 스키마 사용
+            cleanedLink = cleanedLink.replace(/^https?:\/\//, "");
+            return (
+                `intent://www.youtube.com/${cleanedLink}#Intent;` +
+                `scheme=https;package=com.google.android.youtube;` +
+                `S.browser_fallback_url=${YOUTUBE_WEB}${cleanedLink};end`
+            );
+        default:
+            // 데스크탑의 경우만 완전한 URL 처리
+            if (cleanedLink.startsWith("http://") || cleanedLink.startsWith("https://")) {
+                return cleanedLink;
             }
-          }, 1500);
-        }
-      </script>
-    </head>
-    <body onload="tryOpenApp()">
-      <div class="container">
-        <h1>YouTube 앱으로 이동 중</h1>
-        <p>잠시만 기다려주세요...</p>
-        <a href="https://${cleanedLink}" class="button">웹에서 열기</a>
-      </div>
-    </body>
-  </html>
-`;
+            return cleanedLink.includes("youtube.com")
+                ? `https://${cleanedLink}`
+                : `${YOUTUBE_WEB}${cleanedLink}`;
+    }
+};
 
-const createResponse = (statusCode, headers, body) => ({
-    statusCode,
-    headers: {
-        ...headers,
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-    },
-    body,
-});
-
+/**
+ * Lambda 핸들러 함수
+ */
 exports.redirectHandler = async (event) => {
     try {
-        const { rawPath = "", rawQueryString = "", headers } = event;
+        console.log("Received event:", JSON.stringify(event, null, 2));
 
-        console.log("event:", event);
+        const { rawPath = "", rawQueryString = "", headers = {} } = event;
 
+        // 루트 경로 처리
         if (!rawPath || rawPath === "/") {
-            return createResponse(302, { Location: "https://www.youtube.com" });
+            return {
+                statusCode: 302,
+                headers: { Location: YOUTUBE_WEB },
+            };
         }
 
+        // URL 처리 및 리다이렉트
         const originalLink = `${rawPath}${rawQueryString ? `?${rawQueryString}` : ""}`;
-        const cleanedLink = cleanUrl(originalLink);
-
-        logHeaders(headers);
-
         const deviceType = getDeviceType(headers);
-        const redirectLocation = createRedirectUrl(cleanedLink, deviceType);
+        const redirectLocation = createRedirectUrl(originalLink, deviceType);
 
         console.log("Device Type:", deviceType);
         console.log("Redirect Location:", redirectLocation);
 
-        return createResponse(302, { Location: redirectLocation });
+        return {
+            statusCode: 302,
+            headers: {
+                Location: redirectLocation,
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                Pragma: "no-cache",
+                Expires: "0",
+            },
+        };
     } catch (error) {
-        console.error("Error in redirect handler:", error, error.stack);
-        return createResponse(
-            500,
-            { "Content-Type": "application/json" },
-            JSON.stringify({ error: "Internal Server Error" })
-        );
+        console.error("Error in redirect handler:", error);
+        return {
+            statusCode: 500,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ error: "Internal Server Error" }),
+        };
     }
 };
