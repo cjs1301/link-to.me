@@ -70,24 +70,31 @@ const createRedirectUrl = (rawUrl, deviceType, userAgent = "") => {
                 // 일반 브라우저에서는 바로 intent URL로 리다이렉트
                 if (hasYoutubeDomain) {
                     // YouTube URL인 경우 watch?v= 형태로 변환
-                    if (cleanedLink.includes("youtube.com/watch?v=")) {
-                        const videoId = cleanedLink.match(/v=([^&]+)/)?.[1];
-                        if (videoId) {
-                            return `intent://www.youtube.com/watch?v=${videoId}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                                webUrl
-                            )};end`;
-                        }
+                    if (cleanedLink.includes("youtube.com/watch")) {
+                        // 전체 쿼리 파라미터 보존
+                        const queryStart = cleanedLink.indexOf("?");
+                        const queryString =
+                            queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
+                        return `intent://www.youtube.com/watch${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                            webUrl
+                        )};end`;
                     } else if (cleanedLink.includes("youtube.com/playlist")) {
-                        return `intent://www.youtube.com/playlist#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                        // 플레이리스트 쿼리 파라미터 보존
+                        const queryStart = cleanedLink.indexOf("?");
+                        const queryString =
+                            queryStart !== -1 ? cleanedLink.substring(queryStart) : "";
+                        return `intent://www.youtube.com/playlist${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
                             webUrl
                         )};end`;
                     } else if (cleanedLink.includes("youtu.be/")) {
-                        const videoId = cleanedLink.split("youtu.be/")[1]?.split("?")[0];
-                        if (videoId) {
-                            return `intent://www.youtube.com/watch?v=${videoId}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                                webUrl
-                            )};end`;
-                        }
+                        // youtu.be 링크를 완전한 YouTube URL로 변환
+                        const parts = cleanedLink.split("youtu.be/")[1];
+                        const [videoId, ...queryParts] = parts.split("?");
+                        const additionalParams =
+                            queryParts.length > 0 ? `&${queryParts.join("&")}` : "";
+                        return `intent://www.youtube.com/watch?v=${videoId}${additionalParams}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                            webUrl
+                        )};end`;
                     }
                 }
 
@@ -191,24 +198,28 @@ const generateAndroidInAppHtml = (webUrl, cleanedLink) => {
                 const link = '${cleanedLink}';
                 
                 // URL 타입에 따른 intent URL 생성
-                if (link.includes('youtube.com/watch?v=')) {
-                    const videoMatch = link.match(/v=([^&]+)/);
-                    if (videoMatch) {
-                        intentUrl = \`intent://www.youtube.com/watch?v=\${videoMatch[1]}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                            webUrl
-                        )};end\`;
-                    }
+                if (link.includes('youtube.com/watch')) {
+                    // 전체 쿼리 파라미터 보존
+                    const queryStart = link.indexOf('?');
+                    const queryString = queryStart !== -1 ? link.substring(queryStart) : '';
+                    intentUrl = \`intent://www.youtube.com/watch\${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                        webUrl
+                    )};end\`;
                 } else if (link.includes('youtube.com/playlist')) {
-                    intentUrl = \`intent://www.youtube.com/playlist#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                    // 플레이리스트 쿼리 파라미터 보존
+                    const queryStart = link.indexOf('?');
+                    const queryString = queryStart !== -1 ? link.substring(queryStart) : '';
+                    intentUrl = \`intent://www.youtube.com/playlist\${queryString}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
                         webUrl
                     )};end\`;
                 } else if (link.includes('youtu.be/')) {
-                    const videoId = link.split('youtu.be/')[1]?.split('?')[0];
-                    if (videoId) {
-                        intentUrl = \`intent://www.youtube.com/watch?v=\${videoId}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-                            webUrl
-                        )};end\`;
-                    }
+                    // youtu.be 링크를 완전한 YouTube URL로 변환
+                    const parts = link.split('youtu.be/')[1];
+                    const [videoId, ...queryParts] = parts.split('?');
+                    const additionalParams = queryParts.length > 0 ? \`&\${queryParts.join('&')}\` : '';
+                    intentUrl = \`intent://www.youtube.com/watch?v=\${videoId}\${additionalParams}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                        webUrl
+                    )};end\`;
                 } else {
                     intentUrl = \`intent://www.youtube.com/\${link}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
                         webUrl
