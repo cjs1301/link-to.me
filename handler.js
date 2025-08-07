@@ -60,15 +60,39 @@ const createRedirectUrl = (rawUrl, deviceType, userAgent = "") => {
             return `youtube://${cleanedLink}`;
 
         case "android":
-            // Android 인앱브라우저에서 YouTube 앱 열기
+            // Android 인앱브라우저 감지
             const isInApp = isInAppBrowser(userAgent);
 
             if (isInApp) {
-                // 인앱브라우저인 경우 HTML 응답이 필요함을 표시
+                // 인앱브라우저인 경우 HTML 페이지로 처리
                 return "ANDROID_INAPP_HTML_NEEDED";
             } else {
-                // 일반 브라우저인 경우 간단한 intent 사용
-                return `intent://${cleanedLink}#Intent;scheme=youtube;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                // 일반 브라우저에서는 바로 intent URL로 리다이렉트
+                if (hasYoutubeDomain) {
+                    // YouTube URL인 경우 watch?v= 형태로 변환
+                    if (cleanedLink.includes("youtube.com/watch?v=")) {
+                        const videoId = cleanedLink.match(/v=([^&]+)/)?.[1];
+                        if (videoId) {
+                            return `intent://www.youtube.com/watch?v=${videoId}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                                webUrl
+                            )};end`;
+                        }
+                    } else if (cleanedLink.includes("youtube.com/playlist")) {
+                        return `intent://www.youtube.com/playlist#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                            webUrl
+                        )};end`;
+                    } else if (cleanedLink.includes("youtu.be/")) {
+                        const videoId = cleanedLink.split("youtu.be/")[1]?.split("?")[0];
+                        if (videoId) {
+                            return `intent://www.youtube.com/watch?v=${videoId}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                                webUrl
+                            )};end`;
+                        }
+                    }
+                }
+
+                // 기본 YouTube 앱 연결
+                return `intent://www.youtube.com/${cleanedLink}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
                     webUrl
                 )};end`;
             }
@@ -162,46 +186,71 @@ const generateAndroidInAppHtml = (webUrl, cleanedLink) => {
     <script>
         function openYouTube() {
             try {
-                // YouTube 앱 열기 시도 - 다양한 방법 사용
-                const youtubeUrl = 'youtube://${cleanedLink}';
-                const intentUrl = 'intent://${cleanedLink}#Intent;scheme=youtube;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
-        webUrl
-    )};end';
+                // YouTube 앱 URL 생성
+                let intentUrl = '';
+                const link = '${cleanedLink}';
+                
+                // URL 타입에 따른 intent URL 생성
+                if (link.includes('youtube.com/watch?v=')) {
+                    const videoMatch = link.match(/v=([^&]+)/);
+                    if (videoMatch) {
+                        intentUrl = \`intent://www.youtube.com/watch?v=\${videoMatch[1]}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                            webUrl
+                        )};end\`;
+                    }
+                } else if (link.includes('youtube.com/playlist')) {
+                    intentUrl = \`intent://www.youtube.com/playlist#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                        webUrl
+                    )};end\`;
+                } else if (link.includes('youtu.be/')) {
+                    const videoId = link.split('youtu.be/')[1]?.split('?')[0];
+                    if (videoId) {
+                        intentUrl = \`intent://www.youtube.com/watch?v=\${videoId}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                            webUrl
+                        )};end\`;
+                    }
+                } else {
+                    intentUrl = \`intent://www.youtube.com/\${link}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(
+                        webUrl
+                    )};end\`;
+                }
                 
                 let appOpened = false;
                 
-                // 첫 번째 시도: youtube:// 스키마
-                setTimeout(() => {
-                    if (!appOpened) {
-                        try {
-                            window.location.href = youtubeUrl;
-                        } catch (e) {
-                            console.log('YouTube URL 스키마 실패:', e);
+                // 첫 번째 시도: Intent URL로 앱 열기
+                if (intentUrl) {
+                    setTimeout(() => {
+                        if (!appOpened) {
+                            try {
+                                window.location.href = intentUrl;
+                            } catch (e) {
+                                console.log('Intent URL 실패:', e);
+                            }
                         }
-                    }
-                }, 100);
+                    }, 100);
+                }
                 
-                // 두 번째 시도: intent URL
+                // 두 번째 시도: YouTube 앱 스키마
                 setTimeout(() => {
                     if (!appOpened) {
                         try {
-                            window.location.href = intentUrl;
+                            window.location.href = 'youtube://${cleanedLink}';
                         } catch (e) {
-                            console.log('Intent URL 실패:', e);
+                            console.log('YouTube 스키마 실패:', e);
                         }
                     }
-                }, 1500);
+                }, 1000);
                 
                 // 세 번째 시도: 외부 브라우저에서 열기
                 setTimeout(() => {
                     if (!appOpened) {
                         try {
-                            window.open('${webUrl}', '_blank');
+                            window.open('${webUrl}', '_system');
                         } catch (e) {
                             console.log('외부 브라우저 열기 실패:', e);
                         }
                     }
-                }, 2500);
+                }, 2000);
                 
                 // 최종 fallback: 현재 창에서 웹 버전 열기
                 setTimeout(() => {
@@ -209,7 +258,7 @@ const generateAndroidInAppHtml = (webUrl, cleanedLink) => {
                         document.getElementById('fallbackBtn').style.display = 'inline-block';
                         window.location.href = '${webUrl}';
                     }
-                }, 3500);
+                }, 3000);
                 
                 // 페이지 visibility 변경 감지 (앱이 열렸는지 확인)
                 document.addEventListener('visibilitychange', () => {
